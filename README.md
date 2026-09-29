@@ -8,31 +8,31 @@ See https://docs.deepmodeling.com/projects/deepmd/en/v2.2.3/getting-started/inst
 
 ## Preparing the training and testing data
 
-The training data used by DeePMD-kit comprises the atom type, simulation box,
-atom coordinates, atom forces, system energy, and virial. `data/data_preparation.ipynb`
-converts a VASP AIMD trajectory (`OUTCAR_10ps`) into DeePMD `npy` systems and
-splits it into a training set and a validation (testing) set.
-
-**1. Load the trajectory and split into training / validation sets:**
-
 ```python
 import dpdata
 import numpy as np
 
-# Load the labeled system (types, box, coords, energy, forces, virials) from the VASP OUTCAR.
+# The training data utilized by DeePMD-kit comprises essential information such as atom type, simulation box, atom coordinate, atom force, system energy, and virial.
+# A snapshot of a molecular system that includes this data is called a frame. Multiple frames with the same number of atoms and atom types make up a system of data. For instance, a molecular dynamics trajectory can be converted into a system of data, with each time step corresponding to a frame in the system.
+
+# Load data from VASP OUTCAR files. In addition to the number of atoms, atom types and coordinates from the POSCAR file, LabeledSystem contains system energy, forces and virials calculated in the OUTCAR file.
 system = dpdata.LabeledSystem("./OUTCAR_10ps", fmt="vasp/outcar")
 nframes = len(system)
 print(f"# the system contains {len(system)} frames")
 
-# Randomly hold out 50 frames as the validation (testing) set; the rest are training.
+# randomly choose 50 unique indices, which will be used to carve out a validation set from nframes - the collection of molecular dynamics snapshots.
 rng = np.random.default_rng()
 index_validation = rng.choice(nframes, size=50, replace=False)
+
+# all other indexes are training_data
 index_training = list(set(range(nframes)) - set(index_validation))
 data_training = system.sub_system(index_training)
 data_validation = system.sub_system(index_validation)
 
-# Write each set out in DeePMD npy format.
+# all training data put into directory: "training_data"
 data_training.to_deepmd_npy("salt-alloy/data/training_data")
+
+# all validation data put into directory: "validation_data"
 data_validation.to_deepmd_npy("salt-alloy/data/validation_data")
 
 print(f"# the training data contains {len(data_training)} frames")
@@ -45,9 +45,8 @@ print(f"# the validation data contains {len(data_validation)} frames")
 # the validation data contains 50 frames
 ```
 
-**2. Inspect the atom-type mapping (`type_map.raw`):**
-
 ```python
+# The mapping can be given by the file type_map.raw.
 ! cat salt-alloy/data/training_data/type_map.raw
 ```
 
@@ -61,36 +60,36 @@ Ta
 W
 ```
 
-**3. Count the number of atoms of each type:**
-
 ```python
+# Determine the number of each atom type mapped to Li Be F Mo Nb Ta W.
 types, counts = np.unique(np.loadtxt("salt-alloy/data/training_data/type.raw", dtype=int), return_counts=True)
 for t, c in zip(types, counts):
     print(f"type {t}: {c}")
 ```
 
 ```
-type 0: 28   # Li
-type 1: 14   # Be
-type 2: 56   # F
-type 3: 20   # Mo
-type 4: 20   # Nb
-type 5: 20   # Ta
-type 6: 20   # W
+type 0: 28
+type 1: 14
+type 2: 56
+type 3: 20
+type 4: 20
+type 5: 20
+type 6: 20
 ```
 
 ## Training the potential
 
-The model is trained with `dp train input.json` (see `training/training.ipynb`).
-Training progress is recorded in `lcurve.out`; the learning curve below plots the
-energy and force RMSE for the training and validation sets against the number of
-training steps:
+```python
+# Train the deep potential model from input.json; progress is logged to lcurve.out.
+! OMP_NUM_THREADS=4 DP_INTRA_OP_PARALLELISM_THREADS=4 DP_INTER_OP_PARALLELISM_THREADS=2 dp train input.json
+```
 
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
+# Plot the learning curve: energy/force RMSE for train and validation vs training step.
 with open("lcurve.out") as f:
     headers = f.readline().split()[1:]
 lcurve = pd.DataFrame(np.loadtxt("lcurve.out"), columns=headers)
@@ -107,13 +106,15 @@ plt.show()
 
 ## Validating the potential
 
-After freezing the model to `graph.pb`, use it to predict energies for the
-training set and compare them against the DFT reference. A tight cluster along
-the `y = x` line indicates good agreement between the deep potential and DFT:
+```python
+# Freeze the trained model into a single graph.pb file.
+! dp freeze -o graph.pb
+```
 
 ```python
 import dpdata
 
+# Predict energies for the training set with the frozen model.
 training_systems = dpdata.LabeledSystem("../data/training_data", fmt="deepmd/npy")
 predict = training_systems.predict("graph.pb")
 ```
@@ -122,6 +123,7 @@ predict = training_systems.predict("graph.pb")
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Compare DFT energies against deep-potential predictions; a tight cluster along y = x means good agreement.
 plt.scatter(training_systems["energies"], predict["energies"])
 
 x_range = np.linspace(plt.xlim()[0], plt.xlim()[1])
