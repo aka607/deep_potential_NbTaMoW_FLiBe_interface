@@ -20,9 +20,9 @@ system = dpdata.LabeledSystem("./OUTCAR_10ps", fmt="vasp/outcar")
 nframes = len(system)
 print(f"# the system contains {len(system)} frames")
 
-# randomly choose 50 unique indices, which will be used to carve out a validation set from nframes - the collection of molecular dynamics snapshots.
+# randomly choose 115 unique indices, which will be used to carve out a validation set from nframes - the collection of molecular dynamics snapshots.
 rng = np.random.default_rng()
-index_validation = rng.choice(nframes, size=50, replace=False)
+index_validation = rng.choice(nframes, size=115, replace=False)
 
 # all other indexes are training_data
 index_training = list(set(range(nframes)) - set(index_validation))
@@ -41,8 +41,8 @@ print(f"# the validation data contains {len(data_validation)} frames")
 
 ```
 # the system contains 463 frames
-# the training data contains 413 frames
-# the validation data contains 50 frames
+# the training data contains 348 frames
+# the validation data contains 115 frames
 ```
 
 ```python
