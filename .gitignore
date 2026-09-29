@@ -81,7 +81,6 @@ Thumbs.db
 # Large VASP sample outputs (not for version control)
 data/NbTaMoW_FLiBe_calc
 data/OUTCAR_10ps
-data/salt-alloy
 
 # Bulky trained-model checkpoints (keep graph.pb instead); >GitHub limits / heavy
 training/model.ckpt-*
