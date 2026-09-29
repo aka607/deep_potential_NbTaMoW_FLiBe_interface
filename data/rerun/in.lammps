@@ -1,0 +1,85 @@
+# Created by Siamak Attarian (sattarian@wisc.edu, siamak.attarian@gmail.com)
+# For more information, see below article: 
+# "S.Attarian, D.Morgan, I.Szlufarska, Thermophysical properties of FLiBe using moment tensor potentials, Journal of Molecular Liquids, 2022"
+# This tempelate file is used to calculate the density, diffusivity, thermal expansion coefficient,
+# radial distribution function, specific heat capacity and bulk modulus of FLiBe.
+# The output files are post processed to obtain the mentioned properties.
+#-----------------------------------------------------------------------------
+#----------------------------- General setting -------------------------------
+#-----------------------------------------------------------------------------
+clear
+units metal
+dimension 3
+boundary p p p
+atom_style atomic
+
+#-----------------------------------------------------------------------------
+#---------------------------- Importing atoms --------------------------------
+#-----------------------------------------------------------------------------
+read_data FLiBe_800K.data
+
+#-----------------------------------------------------------------------------
+#-------------------- Grouping for MSD calculations---------------------------
+#-----------------------------------------------------------------------------
+group Lithium type 1
+group Berylium type 2
+group Fluorine type 3
+
+#-----------------------------------------------------------------------------
+#------------------------- Interatomic Potential -----------------------------
+#-----------------------------------------------------------------------------
+pair_style mlip mlip.ini
+pair_coeff * *
+
+#-----------------------------------------------------------------------------
+#----------------------------- Other Settings --------------------------------
+#-----------------------------------------------------------------------------
+variable T equal 800
+variable P equal 0
+timestep 0.001
+thermo 100
+neighbor 2.0 bin 
+neigh_modify delay 1 check yes 
+
+#-----------------------------------------------------------------------------
+#----------------------------- Output Settings -------------------------------
+#-----------------------------------------------------------------------------  
+thermo_style custom step etotal pe ke temp enthalpy vol press density
+dump force all custom 100 lammps1.dump id type x y z vx vy vz fx fy fz 
+dump_modify force sort id element Li Be F
+
+#-----------------------------------------------------------------------------
+#--------------------------- Equilibration run -------------------------------
+#-----------------------------------------------------------------------------  
+velocity all create 1600 123456 dist gaussian
+fix 1 all npt temp 1600 $T 0.1 iso 0 $P 1
+run 10000
+unfix 1
+
+#-----------------------------------------------------------------------------
+#---------------------------- Output Settings --------------------------------
+#-----------------------------------------------------------------------------
+compute msdLi Lithium msd com yes
+compute msdBe Berylium msd com yes
+compute msdF  Fluorine msd com yes
+thermo_style custom step etotal pe ke temp enthalpy vol press density c_msdLi[4] c_msdBe[4] c_msdF[4]
+
+#-----------------------------------------------------------------------------
+#----------------------------- Production run --------------------------------
+#-----------------------------------------------------------------------------
+fix 2 all npt temp $T $T 0.1 iso $P $P 1
+run 100000
+unfix 2
+
+#-----------------------------------------------------------------------------
+#----------------------------- NVT  --------------------------------
+#-----------------------------------------------------------------------------
+# Create a new dump ID called 'nvt'
+dump nvt all custom 20000 lammps1_nvt.dump id type x y z vx vy vz
+dump_modify nvt sort id element Li Be F
+
+fix 3 all nvt temp $T $T 0.1 
+run 1000000
+unfix 3
+
+print "All done!" 
